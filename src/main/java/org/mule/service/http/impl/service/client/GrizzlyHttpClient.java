@@ -24,7 +24,6 @@ import static org.mule.runtime.http.api.HttpHeaders.Names.CONTENT_LENGTH;
 import static org.mule.runtime.http.api.HttpHeaders.Names.TRANSFER_ENCODING;
 import static org.mule.runtime.http.api.HttpHeaders.Values.CLOSE;
 import static org.mule.runtime.http.api.server.HttpServerProperties.PRESERVE_HEADER_CASE;
-
 import org.mule.runtime.api.exception.MuleRuntimeException;
 import org.mule.runtime.api.scheduler.Scheduler;
 import org.mule.runtime.api.scheduler.SchedulerConfig;
@@ -46,9 +45,6 @@ import org.mule.runtime.http.api.tcp.TcpClientSocketProperties;
 import org.mule.service.http.impl.service.client.async.ResponseAsyncHandler;
 import org.mule.service.http.impl.service.client.async.ResponseBodyDeferringAsyncHandler;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.ning.http.client.AsyncHandler;
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.AsyncHttpClientConfig;
@@ -60,8 +56,9 @@ import com.ning.http.client.Request;
 import com.ning.http.client.RequestBuilder;
 import com.ning.http.client.Response;
 import com.ning.http.client.filter.FilterException;
-import com.ning.http.client.generators.InputStreamBodyGenerator;
 import com.ning.http.client.multipart.ByteArrayPart;
+import com.ning.http.client.providers.grizzly.FeedableBodyGenerator;
+import com.ning.http.client.providers.grizzly.FeedableBodyGenerator.Feeder;
 import com.ning.http.client.providers.grizzly.GrizzlyAsyncHttpProvider;
 import com.ning.http.client.providers.grizzly.GrizzlyAsyncHttpProviderConfig;
 import com.ning.http.client.uri.Uri;
@@ -77,6 +74,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
 import javax.net.ssl.SSLContext;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class GrizzlyHttpClient implements HttpClient {
 
@@ -401,7 +401,11 @@ public class GrizzlyHttpClient implements HttpClient {
 
       if (request.getEntity() != null) {
         if (request.getEntity().isStreaming()) {
-          builder.setBody(new InputStreamBodyGenerator(request.getEntity().getContent()));
+          //          builder.setBody(new InputStreamBodyGenerator(request.getEntity().getContent()));
+          FeedableBodyGenerator generator = new FeedableBodyGenerator();
+          Feeder feeder = new FeedableBodyGenerator.NonBlockingInputStreamFeeder(generator, request.getEntity().getContent());
+          generator.setFeeder(feeder);
+          builder.setBody(generator);
         } else if (request.getEntity().isComposed()) {
           for (HttpPart part : request.getEntity().getParts()) {
             if (part.getFileName() != null) {
